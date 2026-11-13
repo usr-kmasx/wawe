@@ -2,6 +2,7 @@
   "name": "wawe",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Sala privada de voz, vídeo, tela e chat com o host rodando localmente",
   "engines": {

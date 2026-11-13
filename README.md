@@ -104,4 +104,4 @@ wawe/
 └── package.json
 ```
 
-**Licenciamento:** não há licença de redistribuição concedida neste repositório, salvo decisão posterior do autor.
+**Licença:** [MIT](LICENSE). É permitido usar, modificar e redistribuir o software, inclusive comercialmente, desde que o aviso de direitos autorais e a licença sejam preservados.
