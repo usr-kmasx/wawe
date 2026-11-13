@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Sala privada de voz, vídeo, tela e chat. O host roda o servidor na própria máquina.">
+  <title>wawe — sala privada</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="home">
+  <main class="shell">
+    <header class="brand">
+      <img class="brand-mark" src="/favicon.svg" alt="" width="44" height="44">
+      <div class="brand-text">
+        <h1>wawe</h1>
+        <p class="muted">Voz, vídeo, tela e chat em uma sala privada.</p>
+      </div>
+    </header>
+
+    <section class="home-grid" aria-label="Salas">
+      <section class="card" aria-labelledby="create-title">
+        <div class="card-head">
+          <h2 id="create-title">Criar uma sala</h2>
+        </div>
+
+        <form id="create-form" autocomplete="off" novalidate>
+          <label class="field">
+            <span>Nome da sala</span>
+            <input name="roomName" maxlength="60" required placeholder="ex.: conversa de sexta">
+          </label>
+
+          <label class="field">
+            <span>Seu nome</span>
+            <input name="hostName" maxlength="40" required placeholder="ex.: Nicole">
+          </label>
+
+          <label class="field">
+            <span>Senha da sala</span>
+            <span class="pw-row">
+              <input name="password" type="password" minlength="6" maxlength="128" required placeholder="mínimo 6 caracteres">
+              <button type="button" class="ghost pw-toggle" aria-label="Mostrar senha">ver</button>
+            </span>
+          </label>
+
+          <button class="primary full" type="submit">Criar sala</button>
+          <p class="error" id="create-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <section class="card" aria-labelledby="join-title">
+        <div class="card-head">
+          <h2 id="join-title">Entrar em uma sala</h2>
+        </div>
+
+        <form id="join-form" autocomplete="off" novalidate>
+          <label class="field">
+            <span>Código da sala</span>
+            <input name="code" maxlength="8" required placeholder="ABC123" autocapitalize="characters" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span>Seu nome</span>
+            <input name="name" maxlength="40" required placeholder="ex.: Convidado">
+          </label>
+
+          <label class="field">
+            <span>Senha</span>
+            <span class="pw-row">
+              <input name="password" type="password" maxlength="128" required placeholder="senha da sala">
+              <button type="button" class="ghost pw-toggle" aria-label="Mostrar senha">ver</button>
+            </span>
+          </label>
+
+          <button class="primary full" type="submit">Entrar</button>
+          <p class="error" id="join-error" role="alert" hidden></p>
+        </form>
+      </section>
+    </section>
+
+  </main>
+
+  <script type="module" src="/js/home.js"></script>
+</body>
+</html>

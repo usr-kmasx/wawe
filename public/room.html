@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>wawe — sala</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="room">
+  <header class="topbar">
+    <div class="top-left">
+      <img class="brand-mini" src="/favicon.svg" alt="" width="32" height="32">
+      <div class="room-meta">
+        <strong id="room-name">Sala</strong>
+        <span class="room-code" id="room-code">······</span>
+      </div>
+      <span class="badge" id="role-badge" data-role="host">host</span>
+    </div>
+
+    <div class="top-right">
+      <span class="status" id="conn-status" data-state="connecting">
+        <span class="status-dot"></span>
+        <span class="status-label">conectando</span>
+      </span>
+      <div class="quality-menu-wrap" id="quality-menu-wrap">
+        <button id="quality-toggle" class="ghost quality-toggle" type="button" aria-expanded="false" aria-controls="quality-panel" aria-label="Ajustar qualidade de vídeo" title="Qualidade de vídeo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        </button>
+        <section id="quality-panel" class="quality-panel" aria-label="Qualidade de transmissão" hidden>
+          <h2>Qualidade de transmissão</h2>
+          <div class="quality-group">
+            <label for="camera-quality">Minha câmera · preset</label>
+            <select id="camera-quality">
+              <option value="economy">Econômica · 480p / 15 FPS</option>
+              <option value="balanced" selected>Equilibrada · 720p / 30 FPS</option>
+              <option value="high">Alta · 1080p / 60 FPS</option>
+              <option value="maximum">Máxima · 1440p / 60 FPS</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <div class="quality-dimensions">
+              <label for="camera-resolution">Resolução
+                <select id="camera-resolution">
+                  <option value="480">480p</option>
+                  <option value="720" selected>720p</option>
+                  <option value="1080">1080p</option>
+                  <option value="1440">1440p</option>
+                </select>
+              </label>
+              <label for="camera-fps">FPS
+                <select id="camera-fps">
+                  <option value="15">15 FPS</option>
+                  <option value="30" selected>30 FPS</option>
+                  <option value="60">60 FPS</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <div class="quality-group">
+            <label for="screen-quality">Minha tela · preset</label>
+            <select id="screen-quality">
+              <option value="economy">Econômica · 480p / 15 FPS</option>
+              <option value="balanced">Equilibrada · 720p / 30 FPS</option>
+              <option value="high" selected>Alta · 1080p / 60 FPS</option>
+              <option value="maximum">Máxima · 1440p / 60 FPS</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <div class="quality-dimensions">
+              <label for="screen-resolution">Resolução
+                <select id="screen-resolution">
+                  <option value="480">480p</option>
+                  <option value="720">720p</option>
+                  <option value="1080" selected>1080p</option>
+                  <option value="1440">1440p</option>
+                </select>
+              </label>
+              <label for="screen-fps">FPS
+                <select id="screen-fps">
+                  <option value="15">15 FPS</option>
+                  <option value="30">30 FPS</option>
+                  <option value="60" selected>60 FPS</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <p class="quality-help">Ajusta resolução, quadros/s e bitrate do vídeo enviado. A qualidade real depende do dispositivo e da rede.</p>
+          <p id="quality-status" class="quality-status" role="status" aria-live="polite"></p>
+        </section>
+      </div>
+      <button id="copy-link" class="ghost" type="button">Copiar link</button>
+      <button id="remote-mute" class="ghost" type="button" aria-pressed="false" hidden>Mutar áudio</button>
+      <button id="leave" class="ghost danger" type="button">Sair</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="videos" aria-label="Vídeos da sala">
+      <div class="tile remote" id="remote-tile">
+        <video id="remote-video" class="video hidden-media" autoplay playsinline muted></video>
+        <video id="remote-camera-video" class="video camera-pip" autoplay playsinline muted hidden></video>
+        <div class="tile-placeholder" id="remote-placeholder">
+          <span id="remote-initial">…</span>
+        </div>
+        <div class="tile-chips" id="remote-chips"></div>
+        <div class="tile-label" id="remote-label">Aguardando…</div>
+      </div>
+
+      <div class="tile local" id="local-tile">
+        <video id="local-video" class="video hidden-media" autoplay playsinline muted></video>
+        <video id="local-camera-video" class="video camera-pip" autoplay playsinline muted hidden></video>
+        <div class="tile-placeholder">
+          <span id="local-initial">?</span>
+        </div>
+        <div class="tile-chips" id="local-chips"></div>
+        <div class="tile-label" id="local-label">Você</div>
+      </div>
+
+      <div class="overlay" id="overlay">
+        <div class="overlay-card">
+          <h2 id="overlay-title">Aguardando o convidado</h2>
+          <p class="muted" id="overlay-text">Copie o link e envie junto com a senha.</p>
+          <button class="primary" id="overlay-action" type="button" hidden></button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="controls" aria-label="Mídia">
+        <button id="mic" class="ctrl" type="button" aria-pressed="false" title="Ativar microfone">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          <span id="mic-label">Mic off</span>
+        </button>
+
+        <button id="cam" class="ctrl" type="button" aria-pressed="false" title="Ativar câmera">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="12" height="10" rx="2"/><path d="m15 11 5-3v8l-5-3"/></svg>
+          <span id="cam-label">Câmera off</span>
+        </button>
+
+        <button id="share" class="ctrl" type="button" aria-pressed="false" title="Compartilhar tela">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+          <span id="share-label">Tela</span>
+        </button>
+
+      </div>
+      <div class="host-tools" id="host-tools" hidden>
+        <button id="lock" class="ghost" type="button">Trancar sala</button>
+        <button id="kick" class="ghost danger" type="button" disabled>Remover convidado</button>
+        <button id="end" class="ghost danger" type="button">Encerrar sala</button>
+      </div>
+
+      <section class="chat" aria-label="Chat">
+        <header class="chat-head">
+          <h2>Chat</h2>
+        </header>
+
+        <div class="messages" id="messages" aria-live="polite"></div>
+
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="1" maxlength="1000" placeholder="Escreva uma mensagem" required></textarea>
+          <button class="primary" id="chat-send" type="submit">Enviar</button>
+        </form>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <audio id="remote-audio" autoplay playsinline></audio>
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/room.js"></script>
+</body>
+</html>

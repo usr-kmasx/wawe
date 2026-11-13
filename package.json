@@ -1,0 +1,19 @@
+{
+  "name": "wawe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sala privada de voz, vídeo, tela e chat com o host rodando localmente",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js",
+    "test:browser": "node scripts/browser-check.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
