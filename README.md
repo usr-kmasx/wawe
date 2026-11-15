@@ -1,6 +1,6 @@
 # Wawe
 
-**Versão final: V13-2.11.26**
+**Versão: V14.11.26**
 
 Wawe é uma sala privada de voz, câmera, compartilhamento de tela e chat para **um host e um convidado**. O servidor roda na máquina do host; um túnel HTTPS temporário pode publicar o endereço de acesso sem abrir uma porta no roteador.
 
@@ -9,7 +9,8 @@ Wawe é uma sala privada de voz, câmera, compartilhamento de tela e chat para *
 - Áudio de aba/tela quando o navegador disponibiliza a captura.
 - Visualização com vídeo em destaque, miniaturas móveis/redimensionáveis e **miniaturas também em tela cheia**.
 - Configuração independente de resolução, FPS e bitrate de câmera/tela.
-- Chat efêmero, senha para entrar, bloqueio de sala e controles do host.
+- Chat efêmero, convites seguros de uso único sem senha, bloqueio de sala e controles do host.
+- Picture-in-Picture individual e interface com **temas claro/escuro**.
 - Identidade visual própria em SVG (símbolo de duas conversas).
 
 ## Requisitos
@@ -37,7 +38,7 @@ Para uso exclusivamente local, sem túnel:
 TUNNEL=0 ./start.sh
 ```
 
-No site, crie uma sala com nome, apelido e senha (mínimo de seis caracteres). Envie ao convidado o **link de convite** e a senha separadamente. O convidado participa com câmera, microfone, chat e compartilhamento de tela, mas não recebe controle remoto do computador do host.
+No site, crie uma sala com nome, apelido e senha (mínimo de seis caracteres). O botão **Copiar convite** gera um link autenticado que permite ao convidado entrar apenas com o nome, sem precisar digitar a senha. Também é possível entrar com o código da sala e a senha informada pelo host. O convidado participa com câmera, microfone, chat e compartilhamento de tela, mas não recebe controle remoto do computador do host.
 
 ## Controles da sala
 
@@ -45,9 +46,12 @@ No site, crie uma sala com nome, apelido e senha (mínimo de seis caracteres). E
 - **Câmera**: liga/desliga o vídeo local.
 - **Tela**: inicia/encerra o compartilhamento de tela; o áudio é solicitado automaticamente quando suportado.
 - **Qualidade**: perfis Econômica (480p/15 FPS), Equilibrada (720p/30 FPS), Alta (1080p/60 FPS) e Máxima (1440p/60 FPS), além de ajustes independentes. Os valores reais dependem do dispositivo e da rede.
-- **Vídeos**: clique/toque em uma miniatura para destacá-la. Use os controles para mover ou redimensionar; eles são ocultados após um período sem interação.
-- **Tela cheia**: amplia todo o palco de vídeos, mantendo as miniaturas visíveis, mesmo ao alternar o destaque.
-- **Host**: pode copiar o convite, trancar a sala, remover o convidado ou encerrar a sala para todos.
+- **Tema visual**: botão de sol/lua imediatamente à direita de Qualidade para alternar entre **escuro (padrão)** e **claro**. A preferência é guardada no navegador e também se aplica à tela inicial. Vídeos e controles sobre os vídeos mantêm suas cores para não alterar a imagem.
+- **Vídeos**: clique/toque em uma miniatura para destacá-la. Use os controles para mover ou redimensionar; eles são ocultados após um período sem interação. Miniaturas flutuantes não se sobrepõem: quando uma invade o espaço de outra, o layout desloca a outra automaticamente. A largura mínima normal é **120 px**, com altura proporcional à câmera; o Wawe reorganiza as miniaturas antes de reduzi-las. Somente em janelas pequenas demais para acomodá-las esse limite pode ser reduzido temporariamente, retornando ao tamanho preferido quando houver espaço. **Câmeras utilizam sua proporção real** (por exemplo, 4:3, 16:9 ou vertical), inclusive em destaque, evitando faixas pretas dentro da moldura sem cortar a imagem. A área externa do palco pode continuar visível quando sua proporção difere da câmera.
+- **Tela cheia**: amplia todo o palco de vídeos, mantendo as miniaturas visíveis. Miniaturas nos cantos continuam ancoradas às bordas ao entrar e sair da tela cheia; as movidas manualmente para outros locais preservam sua posição relativa ao palco. Redimensionar uma miniatura encaixada na borda mantém a ancoragem.
+- **Janela flutuante (PiP)**: no Chromium, mova o mouse ou toque no vídeo para revelar o botão de janela flutuante (canto superior esquerdo do destaque; centro das miniaturas). O PiP mostra **apenas o vídeo escolhido**, sem duplicar áudio. Clique no botão de outro vídeo para trocar a fonte na mesma janela, ou no mesmo botão para fechar. Mudar o destaque na sala não troca automaticamente o PiP. A câmera e o vídeo continuam normalmente na sala.
+- **Copiar convite**: gera um link que autoriza a entrada **sem senha**, pedindo somente o nome do convidado. O link tem um segredo aleatório no fragmento da URL, dura no máximo **30 minutos**, é válido para **uma entrada** e um novo clique em Copiar convite invalida o link anterior. Quem entrar pelo código da sala, sem esse convite, continua precisando da senha. A sala trancada e o limite de um convidado continuam valendo. **Trate o link como uma credencial privada: qualquer pessoa com ele pode tentar entrar enquanto estiver válido.**
+- **Host**: pode copiar o convite autenticado, trancar a sala, remover o convidado ou encerrar a sala para todos.
 
 ## Endereço público fixo (opcional)
 

@@ -1,6 +1,6 @@
 # Segurança e privacidade
 
-**Release:** V13-2.11.26
+**Release:** V14.11.26
 
 ## Superfície pública
 
@@ -28,7 +28,8 @@ A auditoria antes do lançamento procura caminhos absolutos de usuário, e-mails
 
 ## Limitações e recomendações
 
-- Não envie a senha da sala no mesmo canal do link se o objetivo é reduzir o risco de acesso não autorizado.
+- Convites autenticados dispensam o envio da senha, mas funcionam como credenciais: compartilhe apenas com a pessoa autorizada.
+- Se utilizar a entrada convencional por código, envie a senha separadamente.
 - Não compartilhe uma janela ou aba que mostre conteúdo confidencial.
 - Mantenha o navegador e o Node.js atualizados.
 - Em redes restritivas, a ausência de TURN pode impedir conexões.

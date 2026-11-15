@@ -182,6 +182,46 @@ try {
     return { hostPage, room };
   })();
 
+  // Escuro é o padrão; botão de tema fica imediatamente à direita da qualidade.
+  assert(await evaluate(created.hostPage, `(() => {
+    const quality = document.getElementById('quality-menu-wrap');
+    const button = document.getElementById('theme-toggle');
+    return document.documentElement.dataset.theme === 'dark'
+      && button?.previousElementSibling === quality
+      && button.getAttribute('aria-pressed') === 'false'
+      && button.getAttribute('aria-label') === 'Ativar tema claro';
+  })()`), 'Tema padrão escuro com botão à direita da qualidade');
+  await evaluate(created.hostPage, `document.getElementById('theme-toggle').click(); true`);
+  await waitFor('tema claro aplicado ao palco, chat e barra superior', () =>
+    evaluate(created.hostPage, `(() => {
+      const root = document.documentElement;
+      const button = document.getElementById('theme-toggle');
+      const panel = document.querySelector('.side');
+      const topbar = document.querySelector('.topbar');
+      const input = document.getElementById('chat-input');
+      const colors = (node) => getComputedStyle(node).backgroundColor;
+      return root.dataset.theme === 'light'
+        && localStorage.getItem('wawe:theme') === 'light'
+        && button.getAttribute('aria-pressed') === 'true'
+        && button.getAttribute('aria-label') === 'Ativar tema escuro'
+        && colors(panel) === 'rgb(255, 255, 255)'
+        && colors(topbar) === 'rgb(255, 255, 255)'
+        && colors(input) === 'rgb(233, 237, 242)'
+        && getComputedStyle(root).colorScheme === 'light';
+    })()`));
+
+  // A mesma preferência se aplica à home em outra aba e sincroniza ao alternar.
+  const themeHomePage = await newPage(`${base}/`);
+  await waitFor('página inicial herda o tema claro', () =>
+    evaluate(themeHomePage, `document.documentElement.dataset.theme === 'light'
+      && getComputedStyle(document.querySelector('.card')).backgroundColor === 'rgb(255, 255, 255)'`));
+  await evaluate(created.hostPage, `document.getElementById('theme-toggle').click(); true`);
+  await waitFor('retorno ao escuro nas duas abas', async () =>
+    (await evaluate(created.hostPage, `document.documentElement.dataset.theme === 'dark'
+      && localStorage.getItem('wawe:theme') === 'dark'
+      && document.getElementById('theme-toggle').getAttribute('aria-label') === 'Ativar tema claro'`))
+    && (await evaluate(themeHomePage, `document.documentElement.dataset.theme === 'dark'`)));
+
   await evaluate(created.hostPage, `(() => {
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -190,9 +230,10 @@ try {
     document.getElementById('copy-link').click();
     return true;
   })()`);
-  await waitFor('botão superior copia o convite com atalho /CODIGO', async () => {
+  const inviteUrl = await waitFor('botão superior copia o convite autenticador', async () => {
     const value = await evaluate(created.hostPage, 'window.__inviteCopied || null');
-    return value === `https://exemplo.trycloudflare.com/${created.room.code}`;
+    return value && new RegExp(`^https://exemplo\.trycloudflare\.com/${created.room.code}#invite=[A-Za-z0-9_-]{43}$`)
+      .test(value) ? value : null;
   });
   assert(
     await evaluate(created.hostPage, `!document.getElementById('share-box')
@@ -206,28 +247,44 @@ try {
     'QR Code foi removido da interface',
   );
 
-  const guestPage = await newPage(`${base}/`);
-  await waitFor('home do convidado', async () => {
-    return evaluate(guestPage, `document.readyState === 'complete' && location.origin === ${JSON.stringify(base)}`);
+  const manualPage = await newPage(`${base}/?room=${created.room.code}`);
+  await waitFor('entrada convencional ainda exige senha', () => evaluate(manualPage, `(() => {
+    const form = document.getElementById('join-form');
+    return Boolean(form && form.elements.code.value === ${JSON.stringify(created.room.code)}
+      && !form.elements.password.closest('.field').hidden
+      && form.elements.password.required
+      && !form.elements.code.closest('.field').hidden);
+  })()`));
+
+  // A origem do link copiado é pública no produto, mas o teste local usa
+  // o mesmo caminho e o mesmo fragmento no servidor temporário de testes.
+  const guestLink = new URL(inviteUrl);
+  const guestPage = await newPage(`${base}${guestLink.pathname}${guestLink.hash}`);
+  await waitFor('convite redireciona para formulário sem pedir código ou senha', async () => {
+    return evaluate(guestPage, `(() => {
+      const form = document.getElementById('join-form');
+      if (!form) return false;
+      return form.elements.code.value === ${JSON.stringify(created.room.code)}
+        && form.elements.code.closest('.field').hidden
+        && form.elements.password.closest('.field').hidden
+        && !form.elements.password.required
+        && !!form.elements.name.offsetParent
+        && location.hash.startsWith('#invite=');
+    })()`);
   });
-
-  await evaluate(guestPage, `(async () => {
-    const response = await fetch('/api/rooms/${created.room.code}/join', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Participante B', password: ${JSON.stringify(ROOM_PASSWORD)} }),
-    });
-    const data = await response.json();
-    sessionStorage.setItem('wawe:session:' + data.code, JSON.stringify({
-      token: data.token,
-      role: data.role,
-      name: 'Participante B',
-      roomName: data.roomName,
-    }));
-    return data;
+  await evaluate(guestPage, `(() => {
+    document.querySelector('#join-form [name="name"]').value = 'Participante B';
+    document.querySelector('#join-form button[type="submit"]').click();
+    return true;
   })()`);
-
-  await navigate(guestPage, `/room.html?room=${created.room.code}`);
+  await waitFor('convidado entra sem senha pelo formulário', async () => {
+    return evaluate(guestPage, `(() => {
+      if (location.pathname !== '/room.html') return false;
+      const item = sessionStorage.getItem('wawe:session:${created.room.code}');
+      const session = item && JSON.parse(item);
+      return session?.role === 'guest' && session?.name === 'Participante B';
+    })()`);
+  });
 
   const { hostPage } = created;
 
@@ -352,6 +409,118 @@ try {
     })()`);
   }, { timeout: 15_000 });
 
+  // As câmeras devem usar proporção real, inclusive quando estão em destaque.
+  await waitFor('metadados da câmera remota', () => evaluate(guestPage, `(() => {
+    const video = document.getElementById('remote-video');
+    const tile = document.getElementById('remote-tile');
+    const box = tile.getBoundingClientRect();
+    return video.videoWidth > 0 && video.videoHeight > 0
+      && tile.classList.contains('focused')
+      && tile.classList.contains('native-camera-ratio')
+      && Math.abs(box.width / box.height - video.videoWidth / video.videoHeight) < .03;
+  })()`));
+
+  // Layout real no Chromium: três miniaturas simultâneas, palco móvel e
+  // redimensionamento de vídeo. Testa geometria renderizada, não só cálculo JS.
+  assert(await evaluate(guestPage, `(async () => {
+    const { createVideoStage } = await import('/js/stage-layout.js');
+    const stage = document.createElement('section');
+    stage.className = 'videos';
+    stage.style.cssText = 'position:fixed;top:-10000px;left:0;width:900px;height:540px;';
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    const makeMain = (key) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      const video = document.createElement('video');
+      const label = document.createElement('div');
+      label.className = 'tile-label';
+      tile.append(video, label);
+      stage.append(tile);
+      return { tile, video, label };
+    };
+    const tiles = {
+      'remote-main': makeMain('remote-main'),
+      'local-main': makeMain('local-main'),
+      'remote-camera': { video: document.createElement('video') },
+      'local-camera': { video: document.createElement('video') },
+    };
+    stage.append(overlay);
+    document.body.append(stage);
+    const layout = createVideoStage({ container: stage, overlay, tiles });
+    const all = Object.fromEntries(Object.keys(tiles).map((key) => [key,
+      { active: true, screen: false, label: key }]));
+    const separated = () => {
+      const rectangles = [...stage.querySelectorAll('.tile.stage-feed.floating')]
+        .filter((tile) => !tile.hidden)
+        .map((tile) => tile.getBoundingClientRect());
+      if (rectangles.length !== 3) return false;
+      return rectangles.every((a, i) => rectangles.slice(i + 1).every((b) =>
+        a.right <= b.left || b.right <= a.left
+        || a.bottom <= b.top || b.bottom <= a.top));
+    };
+    try {
+      for (const [width, height] of [[900, 540], [420, 230], [390, 220], [320, 160], [240, 120]]) {
+        stage.style.width = width + 'px';
+        stage.style.height = height + 'px';
+        layout.refresh(all);
+        if (!separated()) return false;
+        if (width >= 390 && [...stage.querySelectorAll('.tile.stage-feed.floating')]
+          .some((tile) => tile.getBoundingClientRect().width < 119.5)) return false;
+      }
+      stage.style.width = '900px';
+      stage.style.height = '540px';
+      layout.refresh(all);
+      const resize = tiles['local-main'].tile.querySelector('.feed-resize');
+      for (let i = 0; i < 25; i += 1) {
+        resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      }
+      if (!separated()) return false;
+      for (let i = 0; i < 70; i += 1) {
+        resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+      }
+      if (tiles['local-main'].tile.getBoundingClientRect().width < 119.5
+        || !separated()) return false;
+      tiles['remote-camera'].video.parentElement.click();
+      return separated();
+    } finally {
+      layout.destroy();
+      stage.remove();
+    }
+  })()`), 'Miniaturas separadas no DOM mesmo com janela estreita, resize e mudança do destaque');
+
+  // PiP individual: o botão do destaque fica acima à esquerda. Em navegadores
+  // sem Document PiP, o botão permanece indisponível.
+  const documentPiPSupported = await evaluate(guestPage,
+    'Boolean(window.documentPictureInPicture?.requestWindow)');
+  console.log(documentPiPSupported
+    ? '✔ Chromium: Document PiP disponível; testando abertura, troca e fechamento'
+    : 'ℹ Chromium: Document PiP indisponível; controles PiP ocultos');
+  assert(await evaluate(guestPage, `(() => {
+    const focused = document.getElementById('remote-tile');
+    const pipButton = focused.querySelector('.feed-pip');
+    const style = getComputedStyle(pipButton);
+    return Boolean(pipButton) && pipButton.hidden === ${!documentPiPSupported}
+      && (!${documentPiPSupported} || (style.top === '12px' && style.left === '12px'));
+  })()`), 'Botão PiP do vídeo destacado deve ficar no canto superior esquerdo');
+
+  if (documentPiPSupported) {
+    await send('Runtime.evaluate', {
+      expression: 'document.querySelector("#remote-tile .feed-pip").click(); true',
+      userGesture: true,
+      returnByValue: true,
+    }, guestPage.sessionId);
+    await waitFor('PiP do vídeo remoto aberto com áudio mudo', async () => {
+      return evaluate(guestPage, `(() => {
+        const pip = documentPictureInPicture.window;
+        const video = pip?.document.querySelector('video');
+        return Boolean(pip && video && video.srcObject?.getVideoTracks().length === 1
+          && video.srcObject?.getAudioTracks().length === 0 && video.muted
+          && document.getElementById('remote-video').srcObject);
+      })()`);
+    }, { timeout: 8000 });
+  }
+
   assert(await evaluate(guestPage, `(() => {
     const focused = document.getElementById('remote-tile');
     const button = focused.querySelector('.feed-fullscreen');
@@ -367,6 +536,77 @@ try {
   await evaluate(guestPage, 'document.getElementById("cam").click(); true');
   await waitFor('miniatura local ativa no convidado', () => evaluate(guestPage,
     'document.getElementById("cam").getAttribute("aria-pressed") === "true" && !document.getElementById("local-tile").hidden'));
+
+  await waitFor('miniatura de câmera na proporção real sem faixas internas', () =>
+    evaluate(guestPage, `(() => {
+      const tile = document.getElementById('local-tile');
+      const video = document.getElementById('local-video');
+      const box = tile.getBoundingClientRect();
+      return video.videoWidth > 0 && video.videoHeight > 0
+        && tile.classList.contains('native-camera-ratio')
+        && !tile.classList.contains('focused')
+        && getComputedStyle(tile).borderTopWidth === '0px'
+        && Math.abs(box.width / box.height - video.videoWidth / video.videoHeight) < .03;
+    })()`));
+
+  assert(await evaluate(guestPage, `(() => {
+    const tile = document.getElementById('local-tile');
+    const pip = tile.querySelector('.feed-pip');
+    const tileRect = tile.getBoundingClientRect();
+    const buttonRect = pip.getBoundingClientRect();
+    const centered = Math.abs((tileRect.left + tileRect.width / 2)
+      - (buttonRect.left + buttonRect.width / 2)) < 2
+      && Math.abs((tileRect.top + tileRect.height / 2)
+      - (buttonRect.top + buttonRect.height / 2)) < 2;
+    return Boolean(pip) && pip.hidden === ${!documentPiPSupported}
+      && (!${documentPiPSupported} || centered);
+  })()`), 'Botão PiP do vídeo do usuário deve ficar centralizado na miniatura');
+
+  if (documentPiPSupported) {
+    await evaluate(guestPage, 'window.__waweE2EPiPWindow = documentPictureInPicture.window; true');
+    await send('Runtime.evaluate', {
+      expression: 'document.querySelector("#local-tile .feed-pip").click(); true',
+      userGesture: true,
+      returnByValue: true,
+    }, guestPage.sessionId);
+    await waitFor('troca de fonte na mesma janela PiP', () => evaluate(guestPage, `(() => {
+      const pip = documentPictureInPicture.window;
+      const source = document.getElementById('local-video').srcObject;
+      const output = pip?.document.querySelector('video')?.srcObject;
+      return Boolean(pip && pip === window.__waweE2EPiPWindow && source
+        && output?.getVideoTracks()[0] === source.getVideoTracks()[0]);
+    })()`));
+
+    await send('Runtime.evaluate', {
+      expression: 'document.querySelector("#local-tile .feed-pip").click(); true',
+      userGesture: true,
+      returnByValue: true,
+    }, guestPage.sessionId);
+    await waitFor('fechar só janela PiP', () => evaluate(guestPage,
+      'documentPictureInPicture.window === null && document.getElementById("local-video").srcObject?.getVideoTracks().length === 1'));
+  }
+
+  // Força uma posição manual em canto inferior direito antes do fullscreen:
+  // não basta testar a posição padrão, que já é recalculada a cada render.
+  const bottomRight = `(() => {
+    const stage = document.querySelector('.videos');
+    const tile = document.getElementById('local-tile');
+    const a = stage.getBoundingClientRect();
+    const b = tile.getBoundingClientRect();
+    return tile.classList.contains('floating')
+      && Math.abs(a.right - b.right - 16) < 2
+      && Math.abs(a.bottom - b.bottom - 16) < 2;
+  })()`;
+  await evaluate(guestPage, `(() => {
+    const drag = document.querySelector('#local-tile .feed-drag');
+    for (let i = 0; i < 100; i += 1) {
+      drag.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    }
+    return true;
+  })()`);
+  assert(await evaluate(guestPage, bottomRight),
+    'A miniatura movida manualmente deve estar no canto inferior direito antes do fullscreen');
+
   await send('Runtime.evaluate', {
     expression: 'document.querySelector("#remote-tile .feed-fullscreen").click(); true',
     userGesture: true,
@@ -374,6 +614,8 @@ try {
   }, guestPage.sessionId);
   await waitFor('palco, e não tile, em tela cheia', () => evaluate(guestPage,
     'document.fullscreenElement === document.querySelector(".videos")'));
+  await waitFor('miniatura acompanha canto inferior direito no fullscreen', () =>
+    evaluate(guestPage, bottomRight));
   assert(await evaluate(guestPage, '(() => {'
     + ' const stage=document.querySelector(".videos").getBoundingClientRect();'
     + ' const thumb=document.getElementById("local-tile");'
@@ -388,8 +630,14 @@ try {
     + ' && document.getElementById("local-tile").classList.contains("focused")'
     + ' && !document.getElementById("remote-tile").hidden'),
     'Alternar foco mantém tela cheia e miniaturas');
+  await evaluate(guestPage, 'document.getElementById("remote-tile").click(); true');
+  assert(await evaluate(guestPage,
+    'document.getElementById("local-tile").classList.contains("floating")'),
+    'Restaurar destaque original antes de testar a saída do fullscreen');
   await evaluate(guestPage, 'document.exitFullscreen()');
   await waitFor('sair da tela cheia', () => evaluate(guestPage, 'document.fullscreenElement===null'));
+  await waitFor('miniatura volta ao canto inferior direito fora do fullscreen', () =>
+    evaluate(guestPage, bottomRight));
   await evaluate(guestPage, 'document.getElementById("cam").click(); true');
   await waitFor('restaurar câmera do convidado', () => evaluate(guestPage,
     'document.getElementById("cam").getAttribute("aria-pressed")==="false"'));

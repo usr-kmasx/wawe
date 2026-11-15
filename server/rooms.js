@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import {
   hashPassword,
   randomCode,
@@ -13,6 +15,8 @@ export class RoomError extends Error {
     this.code = code;
   }
 }
+
+const INVITE_TTL_MS = 30 * 60 * 1000;
 
 export class RoomManager {
   constructor({ ttlMs = 12 * 60 * 60 * 1000 } = {}) {
@@ -43,6 +47,7 @@ export class RoomManager {
         timer: null,
       },
       guest: null,
+      invite: null,
     };
 
     this.rooms.set(code, room);
@@ -57,7 +62,29 @@ export class RoomManager {
     return { room, hostToken };
   }
 
-  async join({ code, password, name }) {
+  // Um convite equivale a uma autorização temporária para entrar sem senha.
+  // Só uma sessão host legítima pode emiti-lo. Novo clique invalida o anterior.
+  createInvite({ code, hostToken }) {
+    const room = this.rooms.get(code);
+    const session = this.getSession(hostToken);
+    if (!room || room.ended || Date.now() >= room.expiresAt) {
+      throw new RoomError(404, 'room_not_found', 'Sala não encontrada ou expirada.');
+    }
+    if (!session || session.role !== 'host'
+      || session.roomCode !== code || room.host.token !== hostToken) {
+      throw new RoomError(403, 'not_host', 'Somente o host pode gerar convites.');
+    }
+
+    const token = randomToken();
+    const expiresAt = Math.min(room.expiresAt, Date.now() + INVITE_TTL_MS);
+    room.invite = {
+      digest: crypto.createHash('sha256').update(token).digest(),
+      expiresAt,
+    };
+    return { token, expiresAt };
+  }
+
+  async join({ code, password, name, inviteToken }) {
     const room = this.rooms.get(code);
     if (!room || room.ended) {
       throw new RoomError(404, 'room_not_found', 'Sala não encontrada ou expirada.');
@@ -69,10 +96,31 @@ export class RoomManager {
       throw new RoomError(409, 'room_full', 'Esta sala já tem um convidado.');
     }
 
-    const valid = await verifyPassword(password, room.passwordHash);
-    if (!valid) {
-      throw new RoomError(401, 'bad_password', 'Senha incorreta.');
+    const usingInvite = inviteToken !== undefined && inviteToken !== null;
+    if (usingInvite) {
+      const invite = room.invite;
+      const candidate = typeof inviteToken === 'string'
+        && /^[A-Za-z0-9_-]{43}$/.test(inviteToken)
+        ? crypto.createHash('sha256').update(inviteToken).digest()
+        : null;
+      if (!candidate || !invite || Date.now() >= invite.expiresAt
+        || !crypto.timingSafeEqual(candidate, invite.digest)) {
+        throw new RoomError(401, 'invalid_invite', 'Convite inválido ou expirado. Peça um novo link ao host.');
+      }
+    } else {
+      const valid = await verifyPassword(password, room.passwordHash);
+      if (!valid) {
+        throw new RoomError(401, 'bad_password', 'Senha incorreta.');
+      }
     }
+    // A verificação de senha é assíncrona: um segundo participante pode ter
+    // entrado ou o host pode ter trancado a sala enquanto ela era calculada.
+    if (room.guest) throw new RoomError(409, 'room_full', 'Esta sala já tem um convidado.');
+    if (room.locked) throw new RoomError(403, 'room_locked', 'A sala está bloqueada pelo host.');
+    if (room.ended || !this.rooms.has(code) || Date.now() >= room.expiresAt) {
+      throw new RoomError(404, 'room_not_found', 'Sala não encontrada ou expirada.');
+    }
+    if (usingInvite) room.invite = null; // credencial de uso único
 
     const guestToken = randomToken();
     const now = Date.now();

@@ -7,6 +7,10 @@ const joinError = $('#join-error');
 
 const params = new URLSearchParams(location.search);
 const prefillCode = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+// O segredo fica no fragmento: não é enviado ao servidor na navegação HTTP.
+const inviteToken = new URLSearchParams(location.hash.slice(1)).get('invite');
+const invited = /^[A-Z0-9]{6}$/.test(prefillCode)
+  && typeof inviteToken === 'string' && /^[A-Za-z0-9_-]{43}$/.test(inviteToken);
 
 function showError(element, message) {
   element.textContent = message || '';
@@ -46,6 +50,16 @@ async function postJson(path, body) {
 if (prefillCode) {
   joinForm.elements.code.value = prefillCode;
   joinForm.classList.add('prefilled');
+  if (invited) {
+    // Somente o nome é necessário para usar um convite autorizado.
+    joinForm.elements.code.closest('.field').hidden = true;
+    joinForm.elements.password.closest('.field').hidden = true;
+    joinForm.elements.password.required = false;
+    const notice = document.createElement('p');
+    notice.className = 'muted small';
+    notice.textContent = 'Entrada por convite: informe apenas seu nome.';
+    joinForm.querySelector('button[type="submit"]').before(notice);
+  }
   setTimeout(() => joinForm.elements.name.focus(), 120);
 }
 
@@ -123,7 +137,7 @@ joinForm.addEventListener('submit', async (event) => {
     showError(joinError, 'Informe o seu nome.');
     return;
   }
-  if (!password) {
+  if (!invited && !password) {
     showError(joinError, 'Informe a senha da sala.');
     return;
   }
@@ -132,7 +146,7 @@ joinForm.addEventListener('submit', async (event) => {
   try {
     const { response, payload } = await postJson(
       `/api/rooms/${encodeURIComponent(code)}/join`,
-      { name, password },
+      invited ? { name, inviteToken } : { name, password },
     );
 
     if (!response.ok) {

@@ -183,3 +183,143 @@ test('JSON inválido devolve 400', async () => {
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error, 'invalid_json');
 });
+test('somente o host autenticado emite convite seguro de uso único', async () => {
+  const created = await post('/api/rooms', createBody({ roomName: 'Convite por link' }));
+  assert.equal(created.status, 201);
+  const room = await created.json();
+  const path = `/api/rooms/${room.code}/invite`;
+
+  const unauthenticated = await post(path, {});
+  assert.equal(unauthenticated.status, 403);
+  assert.equal((await unauthenticated.json()).error, 'not_host');
+  const other = await (await post('/api/rooms', createBody())).json();
+  const wrongHost = await fetch(`${base}${path}`, {
+    method: 'POST', headers: { authorization: `Bearer ${other.token}` },
+  });
+  assert.equal(wrongHost.status, 403);
+
+  const issue = () => fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${room.token}` },
+  });
+  const result = await issue();
+  assert.equal(result.status, 200);
+  assert.match(result.headers.get('cache-control'), /no-store/);
+  const invite = await result.json();
+  assert.match(invite.token, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(invite.token, room.token);
+  assert.ok(invite.expiresAt > Date.now());
+  assert.ok(invite.expiresAt <= Date.now() + 30 * 60 * 1000);
+
+  const renewed = await issue();
+  assert.equal(renewed.status, 200);
+  const second = await renewed.json();
+  assert.notEqual(second.token, invite.token);
+
+  const oldLink = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: invite.token,
+  });
+  assert.equal(oldLink.status, 401);
+  assert.equal((await oldLink.json()).error, 'invalid_invite');
+
+  const invalidToken = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: 'sem-autenticacao',
+  });
+  assert.equal(invalidToken.status, 401);
+
+  const joined = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: second.token,
+  });
+  assert.equal(joined.status, 200);
+  const guest = await joined.json();
+  assert.equal(guest.role, 'guest');
+  assert.ok(guest.token.length >= 40);
+  assert.equal(guest.name, undefined, 'API mantém o mesmo formato de sessão');
+
+  // O mesmo convite não pode ser usado novamente, mesmo após sair da sala.
+  instance.rooms.endGuest(room.code, 'left');
+  const replay = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Outro convidado', inviteToken: second.token,
+  });
+  assert.equal(replay.status, 401);
+  assert.equal((await replay.json()).error, 'invalid_invite');
+});
+
+test('trancar e ocupar sala continuam bloqueando entrada por convite', async () => {
+  const room = await (await post('/api/rooms', createBody({ roomName: 'Sala protegida' }))).json();
+  const path = `/api/rooms/${room.code}/invite`;
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST', headers: { authorization: `Bearer ${room.token}` },
+  });
+  const { token } = await response.json();
+  const stored = instance.rooms.getRoom(room.code);
+  stored.locked = true;
+  let denied = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: token,
+  });
+  assert.equal(denied.status, 403);
+  assert.equal((await denied.json()).error, 'room_locked');
+  stored.locked = false;
+  const joinedWithPassword = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', password: 'senha-segura',
+  });
+  assert.equal(joinedWithPassword.status, 200);
+  denied = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Segundo convidado', inviteToken: token,
+  });
+  assert.equal(denied.status, 409);
+  assert.equal((await denied.json()).error, 'room_full');
+});
+
+test('convite expirado e token de sessão guest não dão acesso sem senha', async () => {
+  const room = await (await post('/api/rooms', createBody({ roomName: 'Sala expirada' }))).json();
+  const path = `/api/rooms/${room.code}/invite`;
+  const issue = () => fetch(`${base}${path}`, {
+    method: 'POST', headers: { authorization: `Bearer ${room.token}` },
+  });
+  const { token } = await (await issue()).json();
+  instance.rooms.getRoom(room.code).invite.expiresAt = Date.now() - 1;
+  const expired = await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: token,
+  });
+  assert.equal(expired.status, 401);
+  assert.equal((await expired.json()).error, 'invalid_invite');
+
+  // Sem o fragmento ou a senha, a entrada convencional não muda.
+  const passwordRequired = await post(`/api/rooms/${room.code}/join`, { name: 'Convidado' });
+  assert.equal(passwordRequired.status, 400);
+  const invitedAgain = await (await issue()).json();
+  assert.notEqual(invitedAgain.token, token);
+  const guest = await (await post(`/api/rooms/${room.code}/join`, {
+    name: 'Convidado', inviteToken: invitedAgain.token,
+  })).json();
+  const guestIssuesInvite = await fetch(`${base}${path}`, {
+    method: 'POST', headers: { authorization: `Bearer ${guest.token}` },
+  });
+  assert.equal(guestIssuesInvite.status, 403);
+});
+
+test('tema claro e escuro é entregue à sala e ao início sem código inline', async () => {
+  const room = await fetch(`${base}/room.html`);
+  assert.equal(room.status, 200);
+  const roomHtml = await room.text();
+  assert.match(roomHtml, /id="quality-toggle"/);
+  assert.match(roomHtml, /id="theme-toggle"/);
+  assert.ok(roomHtml.indexOf('id="quality-toggle"') < roomHtml.indexOf('id="theme-toggle"'));
+  assert.match(roomHtml, /src="\/js\/theme\.js"/);
+  assert.match(roomHtml, /href="\/css\/theme\.css"/);
+  assert.match(room.headers.get('content-security-policy'), /script-src 'self'/);
+
+  const home = await fetch(`${base}/`);
+  assert.equal(home.status, 200);
+  const homeHtml = await home.text();
+  assert.match(homeHtml, /src="\/js\/theme\.js"/);
+  assert.match(homeHtml, /href="\/css\/theme\.css"/);
+
+  const script = await fetch(`${base}/js/theme.js`);
+  assert.equal(script.status, 200);
+  assert.match(await script.text(), /wawe:theme/);
+  const stylesheet = await fetch(`${base}/css/theme.css`);
+  assert.equal(stylesheet.status, 200);
+  assert.match(await stylesheet.text(), /data-theme="light"/);
+});

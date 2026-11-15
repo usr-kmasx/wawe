@@ -7,7 +7,9 @@
   <meta name="robots" content="noindex">
   <title>wawe — sala</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script src="/js/theme.js"></script>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/theme.css">
 </head>
 <body class="room">
   <header class="topbar">
@@ -89,7 +91,11 @@
           <p id="quality-status" class="quality-status" role="status" aria-live="polite"></p>
         </section>
       </div>
-      <button id="copy-link" class="ghost" type="button">Copiar link</button>
+      <button id="theme-toggle" class="ghost theme-toggle" type="button" aria-label="Ativar tema claro" aria-pressed="false" title="Ativar tema claro">
+        <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+        <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14a8.5 8.5 0 0 1-10.5-10.5 8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <button id="copy-link" class="ghost" type="button" title="Copiar convite autorizado (sem senha para quem recebe)">Copiar convite</button>
       <button id="remote-mute" class="ghost" type="button" aria-pressed="false" hidden>Mutar áudio</button>
       <button id="leave" class="ghost danger" type="button">Sair</button>
     </div>
@@ -120,7 +126,7 @@
       <div class="overlay" id="overlay">
         <div class="overlay-card">
           <h2 id="overlay-title">Aguardando o convidado</h2>
-          <p class="muted" id="overlay-text">Copie o link e envie junto com a senha.</p>
+          <p class="muted" id="overlay-text">Copie o convite para permitir que uma pessoa entre apenas com o nome.</p>
           <button class="primary" id="overlay-action" type="button" hidden></button>
         </div>
       </div>

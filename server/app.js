@@ -111,6 +111,23 @@ export function createApp({
     }
   });
 
+  // Somente a sessão do host recebe o segredo de entrada sem senha.
+  app.post('/api/rooms/:code/invite', (request, response, next) => {
+    try {
+      const code = normalizeCode(request.params.code);
+      const match = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(request.get('authorization') || '');
+      const { token, expiresAt } = rooms.createInvite({
+        code, hostToken: match?.[1] || '',
+      });
+      response.json({ token, expiresAt });
+    } catch (error) {
+      if (error instanceof RoomError) {
+        return response.status(error.status).json({ error: error.code, message: error.message });
+      }
+      return next(error);
+    }
+  });
+
   app.post('/api/rooms/:code/join', joinLimiter, async (request, response, next) => {
     try {
       const code = normalizeCode(request.params.code);
@@ -118,6 +135,7 @@ export function createApp({
       const password = typeof request.body?.password === 'string'
         ? request.body.password
         : '';
+      const inviteToken = request.body?.inviteToken;
 
       if (!code) {
         return response.status(400).json({
@@ -131,14 +149,14 @@ export function createApp({
           message: 'Informe o seu nome.',
         });
       }
-      if (!password) {
+      if ((inviteToken === undefined || inviteToken === null) && !password) {
         return response.status(400).json({
           error: 'invalid_password',
           message: 'Informe a senha da sala.',
         });
       }
 
-      const { room, guestToken } = await rooms.join({ code, password, name });
+      const { room, guestToken } = await rooms.join({ code, password, name, inviteToken });
 
       return response.json({
         code: room.code,

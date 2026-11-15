@@ -1118,3 +1118,61 @@ body.room {
     transition: none !important;
   }
 }
+/* PiP individual: destaque no canto superior esquerdo; miniaturas ao centro. */
+.videos.custom-stage .tile.stage-feed .feed-pip {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 7px;
+  background: rgba(15, 16, 19, 0.87);
+  color: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease, visibility 140ms ease;
+}
+.videos.custom-stage .tile.stage-feed .feed-pip[hidden] {
+  display: none;
+}
+.videos.custom-stage .tile.stage-feed .feed-pip svg {
+  width: 21px;
+  height: 21px;
+}
+.videos.custom-stage .tile.stage-feed.floating .feed-pip {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.videos.custom-stage .tile.stage-feed.controls-visible .feed-pip,
+.videos.custom-stage .tile.stage-feed:has(:focus-visible) .feed-pip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+.videos.custom-stage .tile.stage-feed .feed-pip:hover,
+.videos.custom-stage .tile.stage-feed .feed-pip:focus-visible {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Vídeo de câmera: a moldura acompanha o quadro capturado, sem faixas pretas.
+   O contorno fica fora da imagem para não alterar sua proporção interna. */
+.videos.custom-stage .tile.stage-feed.native-camera-ratio {
+  border: 0;
+  outline: 1px solid var(--line-strong);
+}
+.videos.custom-stage .tile.stage-feed.native-camera-ratio .video {
+  object-fit: contain;
+}
+.videos.custom-stage:fullscreen .tile.stage-feed.focused.native-camera-ratio {
+  outline: none;
+}

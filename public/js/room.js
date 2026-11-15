@@ -1,5 +1,6 @@
 import { PeerSession } from './rtc.js';
 import { createVideoStage } from './stage-layout.js';
+import { createVideoPiP } from './video-pip.js';
 import { createRemotePlayback } from './remote-playback.js';
 import { getProfile, resolveQuality, VIDEO_PROFILES } from './video-quality.js';
 
@@ -109,22 +110,26 @@ function start(session) {
     callbacks: {
       onRemoteStream(stream) {
         remotePlayback.attach(stream);
+        videoPiP.sync();
       },
       onRemoteCameraStream(stream) {
         elements.remoteCameraVideo.srcObject = stream || null;
         updateRemoteCameraPreview();
         if (stream) elements.remoteCameraVideo.play().catch(() => {});
+        videoPiP.sync();
       },
       onLocalCameraStream(stream) {
         elements.localCameraVideo.srcObject = stream || null;
         if (stream) elements.localCameraVideo.play().catch(() => {});
         updateSoloPreview();
+        videoPiP.sync();
       },
       onLocalStream(stream) {
         elements.localVideo.srcObject = stream || null;
         const hasVideo = Boolean(stream?.getVideoTracks().length);
         elements.localVideo.classList.toggle('hidden-media', !hasVideo);
         updateSoloPreview();
+        videoPiP.sync();
       },
       onMediaChange(media) {
         syncMediaUi(media);
@@ -161,7 +166,27 @@ function start(session) {
     onBlocked: () => toast('O navegador bloqueou o áudio automático. Interaja com a página para liberar a reprodução.'),
   });
 
+  const videoPiP = createVideoPiP({
+    sources: {
+      'remote-main': elements.remoteVideo,
+      'local-main': elements.localVideo,
+      'remote-camera': elements.remoteCameraVideo,
+      'local-camera': elements.localCameraVideo,
+    },
+    isActive(key) {
+      const local = rtc.mediaState;
+      const remote = state.peer?.media;
+      if (key === 'remote-main') return Boolean(remote?.cam || remote?.screen);
+      if (key === 'local-main') return Boolean(local.cam || local.screen);
+      if (key === 'remote-camera') return Boolean(remote?.cam && remote?.screen);
+      if (key === 'local-camera') return Boolean(local.cam && local.screen);
+      return false;
+    },
+    onError: toast,
+  });
+
   const videoLayout = createVideoStage({
+    onPictureInPicture: videoPiP.supported ? (key) => videoPiP.toggle(key) : null,
     container: elements.videos,
     overlay: elements.overlay,
     tiles: {
@@ -425,6 +450,7 @@ function start(session) {
     }
 
     socket.emit('room:leave');
+    videoPiP.destroy();
     rtc.destroy();
     setConnection('off', 'saindo…');
     setTimeout(() => location.replace('/'), 150);
@@ -451,6 +477,7 @@ function start(session) {
   elements.chatInput.addEventListener('input', autoGrowInput);
 
   window.addEventListener('pagehide', () => {
+    videoPiP.destroy();
     rtc.destroy();
     socket.disconnect();
   });
@@ -621,6 +648,7 @@ function start(session) {
         label: `${session.name} · câmera`,
       },
     });
+    videoPiP.sync();
     if (state.role === 'host' && !state.peer) {
       if (local.cam || local.screen) hideOverlay();
       else showWaiting();
@@ -777,18 +805,36 @@ function start(session) {
   }
 
   async function copyInvite() {
-    if (state.role !== 'host' || state.ended) return;
-    await loadStatus();
-    const origin = (publicUrl || location.origin).replace(/\/$/, '');
-    const inviteUrl = `${origin}/${encodeURIComponent(code)}`;
-    const ok = await copyText(inviteUrl);
-    toast(
-      ok
-        ? publicUrl
-          ? 'Link copiado.'
-          : 'Link local copiado. Para acesso externo, use o link público do terminal.'
-        : 'Não foi possível copiar o link.',
-    );
+    if (state.role !== 'host' || state.ended || elements.copyLink.disabled) return;
+    elements.copyLink.disabled = true;
+    try {
+      // Nova credencial revoga convites anteriores, expira em até 30 minutos
+      // e só será aceita uma vez. Não expõe a senha nem a sessão do host.
+      const response = await fetch(`/api/rooms/${encodeURIComponent(code)}/invite`, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${session.token}`,
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        toast(payload.message || 'Não foi possível gerar um convite.');
+        return;
+      }
+      await loadStatus();
+      const origin = (publicUrl || location.origin).replace(/\/$/, '');
+      const inviteUrl = `${origin}/${encodeURIComponent(code)}#invite=${encodeURIComponent(payload.token)}`;
+      const ok = await copyText(inviteUrl);
+      toast(ok
+        ? (publicUrl ? 'Convite copiado. O convidado entra apenas com nome.'
+          : 'Convite local copiado. Para acesso externo, configure o link público.')
+        : 'Não foi possível copiar o convite. Tente novamente.');
+    } catch {
+      toast('Falha ao gerar o convite. Verifique a conexão com o servidor.');
+    } finally {
+      elements.copyLink.disabled = false;
+    }
   }
 
   async function copyText(text) {
@@ -834,6 +880,7 @@ function start(session) {
       // sem sessionStorage
     }
 
+    videoPiP.destroy();
     rtc.destroy();
     socket.disconnect();
     remotePlayback.destroy();

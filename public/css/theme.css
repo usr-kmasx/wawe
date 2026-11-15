@@ -1,0 +1,76 @@
+/* Controle ao lado da qualidade: ícone de sol no escuro e lua no claro. */
+.top-right .theme-toggle {
+  width: 39px;
+  height: 39px;
+  flex: 0 0 39px;
+  display: grid;
+  place-items: center;
+  padding: 7px;
+}
+.theme-toggle svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:root:not([data-theme="light"]) .theme-icon-dark,
+:root[data-theme="light"] .theme-icon-light {
+  display: none;
+}
+
+/* Tema claro completo. As cores de mídia não são invertidas; vídeo e
+   controles sobre o vídeo continuam legíveis sobre conteúdo escuro. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fa;
+  --bg-deep: #e9edf2;
+  --panel: #ffffff;
+  --panel-2: #f0f3f7;
+  --panel-3: #e7ecf3;
+  --line: #d9dfe8;
+  --line-strong: #aeb8c7;
+  --text: #1b2637;
+  --muted: #526074;
+  --muted-2: #637185;
+  --accent: #273750;
+  --accent-text: #ffffff;
+  --danger: #ad3546;
+  --ok: #207747;
+  --warn: #8f5c0a;
+  --err: #b23b4b;
+}
+
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] textarea:focus {
+  background: #fff;
+}
+:root[data-theme="light"] .primary:hover {
+  background: #3a506f;
+  border-color: #3a506f;
+}
+:root[data-theme="light"] .tile-placeholder {
+  background: radial-gradient(circle at 50% 40%, #e4eaf2, #cbd4e1 85%);
+}
+:root[data-theme="light"] .overlay {
+  background: rgba(238, 242, 247, 0.9);
+}
+/* Nomes e indicadores aparecem sobre o vídeo, não sobre os painéis claros. */
+:root[data-theme="light"] .tile-label {
+  color: #fff;
+  background: rgba(18, 24, 34, 0.78);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+:root[data-theme="light"] .chip {
+  color: #e5eaf0;
+  background: rgba(18, 24, 34, 0.78);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+:root[data-theme="light"] .quality-panel {
+  box-shadow: 0 18px 50px rgba(29, 42, 61, 0.17);
+}
+:root[data-theme="light"] .toast {
+  box-shadow: 0 12px 35px rgba(29, 42, 61, 0.16);
+}
